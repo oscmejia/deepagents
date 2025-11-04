@@ -4,6 +4,7 @@ from typing import Literal
 from tavily import TavilyClient
 
 from deepagents import create_deep_agent
+from deepagents.middleware.monitoring import DeepAgentMiddleware
 
 # It's best practice to initialize the client once and reuse it.
 tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
@@ -158,9 +159,10 @@ You have access to a few tools.
 Use this to run an internet search for a given query. You can specify the number of results, the topic, and whether raw content should be included.
 """
 
-# Create the agent
+# Create the agent with monitoring middleware
 agent = create_deep_agent(
     tools=[internet_search],
     system_prompt=research_instructions,
     subagents=[critique_sub_agent, research_sub_agent],
+    middleware=[DeepAgentMiddleware()],
 )
