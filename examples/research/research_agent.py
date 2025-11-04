@@ -4,6 +4,7 @@ from typing import Literal
 from tavily import TavilyClient
 
 from deepagents import create_deep_agent
+from deepagents.middleware.agent_name import AgentNameMiddleware
 from deepagents.middleware.monitoring import DeepAgentMiddleware
 
 # It's best practice to initialize the client once and reuse it.
@@ -38,6 +39,7 @@ research_sub_agent = {
     "description": "Used to research more in depth questions. Only give this researcher one topic at a time. Do not pass multiple sub questions to this researcher. Instead, you should break down a large topic into the necessary components, and then call multiple research agents in parallel, one for each sub question.",
     "system_prompt": sub_research_prompt,
     "tools": [internet_search],
+    "middleware": [AgentNameMiddleware("research-agent")],
 }
 
 sub_critique_prompt = """You are a dedicated editor. You are being tasked to critique a report.
@@ -66,6 +68,7 @@ critique_sub_agent = {
     "name": "critique-agent",
     "description": "Used to critique the final report. Give this agent some information about how you want it to critique the report.",
     "system_prompt": sub_critique_prompt,
+    "middleware": [AgentNameMiddleware("critique-agent")],
 }
 
 
@@ -160,9 +163,14 @@ Use this to run an internet search for a given query. You can specify the number
 """
 
 # Create the agent with monitoring middleware
+# AgentNameMiddleware injects agent names into state for tracking
+# DeepAgentMiddleware monitors and logs all LLM and tool calls with agent identification
 agent = create_deep_agent(
     tools=[internet_search],
     system_prompt=research_instructions,
     subagents=[critique_sub_agent, research_sub_agent],
-    middleware=[DeepAgentMiddleware()],
+    middleware=[
+        AgentNameMiddleware("main-research-agent"),
+        DeepAgentMiddleware(),
+    ],
 )

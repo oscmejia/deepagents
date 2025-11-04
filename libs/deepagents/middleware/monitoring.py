@@ -37,6 +37,9 @@ class DeepAgentMiddleware(AgentMiddleware):
         Returns:
             Model response
         """
+        # Get agent name from state (if available)
+        agent_name = request.state.get('agent_name', 'unknown') if hasattr(request, 'state') else 'unknown'
+
         message_count = len(request.messages) if hasattr(request, 'messages') else 0
 
         # Execute the model
@@ -69,7 +72,7 @@ class DeepAgentMiddleware(AgentMiddleware):
 
                 # Log combined LLM response (intention + tool calls)
                 if log_data:
-                    logger.info("🧠 LLM Response", **log_data)
+                    logger.info("🧠 LLM Response", agent=agent_name, **log_data)
 
                 # Log token usage separately
                 if hasattr(ai_message, 'response_metadata'):
@@ -77,6 +80,7 @@ class DeepAgentMiddleware(AgentMiddleware):
                     if token_usage:
                         logger.info(
                             "🧠 Token Usage",
+                            agent=agent_name,
                             prompt_tokens=token_usage.get('prompt_tokens', 0),
                             completion_tokens=token_usage.get('completion_tokens', 0),
                             total_tokens=token_usage.get('total_tokens', 0)
@@ -107,6 +111,13 @@ class DeepAgentMiddleware(AgentMiddleware):
         Returns:
             Tool result (usually ToolMessage)
         """
+        # Get agent name from state (try runtime.state first, then request.state)
+        agent_name = 'unknown'
+        if hasattr(request, 'runtime') and hasattr(request.runtime, 'state'):
+            agent_name = request.runtime.state.get('agent_name', 'unknown')
+        elif hasattr(request, 'state'):
+            agent_name = request.state.get('agent_name', 'unknown')
+
         # Execute the tool
         result = handler(request)
 
@@ -116,17 +127,17 @@ class DeepAgentMiddleware(AgentMiddleware):
 
         # Route to appropriate handler
         if tool_name == 'write_todos':
-            self._handle_write_todos(request, result, output_type)
+            self._handle_write_todos(request, result, output_type, agent_name)
         elif tool_name == 'write_file':
-            self._handle_write_file(request, result, output_type)
+            self._handle_write_file(request, result, output_type, agent_name)
         elif tool_name == 'edit_file':
-            self._handle_edit_file(request, result, output_type)
+            self._handle_edit_file(request, result, output_type, agent_name)
         elif tool_name == 'read_file':
-            self._handle_read_file(request, result, output_type)
+            self._handle_read_file(request, result, output_type, agent_name)
         elif tool_name == 'task':
-            self._handle_task(request, result, output_type)
+            self._handle_task(request, result, output_type, agent_name)
         elif tool_name == 'internet_search':
-            self._handle_internet_search(request, result, output_type)
+            self._handle_internet_search(request, result, output_type, agent_name)
         # TODO: Implement url_fetch handler (expected args: url)
         # TODO: Implement web_scrape handler (expected args: url, selectors)
         # TODO: Implement api_call handler (expected args: endpoint, method, params)
@@ -148,7 +159,7 @@ class DeepAgentMiddleware(AgentMiddleware):
     # PLANNING TOOL HANDLERS
     # ========================================================================
 
-    def _handle_write_todos(self, request: Any, result: Any, output_type: str) -> None:
+    def _handle_write_todos(self, request: Any, result: Any, output_type: str, agent_name: str) -> None:
         """Handle write_todos tool - show detailed task list with status."""
         try:
             if hasattr(request, 'tool_call') and 'args' in request.tool_call:
@@ -156,7 +167,7 @@ class DeepAgentMiddleware(AgentMiddleware):
                 task_count = len(todos)
 
                 # Log structured data
-                logger.info("🦊 Planning todos created", task_count=task_count, output_type=output_type)
+                logger.info("🦊 Planning todos created", agent=agent_name, task_count=task_count, output_type=output_type)
 
                 # Display formatted todo list
                 print(f"   📋 Tasks ({task_count}):")
@@ -175,7 +186,7 @@ class DeepAgentMiddleware(AgentMiddleware):
         except Exception as e:
             logger.warning("🦊⚠️ Could not parse write_todos args", error=str(e))
 
-    def _handle_write_file(self, request: Any, result: Any, output_type: str) -> None:
+    def _handle_write_file(self, request: Any, result: Any, output_type: str, agent_name: str) -> None:
         """Handle write_file tool - show file path, content preview, and size."""
         try:
             if hasattr(request, 'tool_call') and 'args' in request.tool_call:
@@ -184,6 +195,7 @@ class DeepAgentMiddleware(AgentMiddleware):
                 content_preview = content[:100] + '...' if len(content) > 100 else content
                 logger.info(
                     "🦊 File written",
+                    agent=agent_name,
                     file_path=file_path,
                     content_preview=content_preview,
                     size_chars=len(content)
@@ -191,7 +203,7 @@ class DeepAgentMiddleware(AgentMiddleware):
         except Exception as e:
             logger.warning("🦊⚠️ Could not parse write_file args", error=str(e))
 
-    def _handle_edit_file(self, request: Any, result: Any, output_type: str) -> None:
+    def _handle_edit_file(self, request: Any, result: Any, output_type: str, agent_name: str) -> None:
         """Handle edit_file tool - show file path, content preview, and size."""
         try:
             if hasattr(request, 'tool_call') and 'args' in request.tool_call:
@@ -200,6 +212,7 @@ class DeepAgentMiddleware(AgentMiddleware):
                 content_preview = new_string[:100] + '...' if len(new_string) > 100 else new_string
                 logger.info(
                     "🦊 File edited",
+                    agent=agent_name,
                     file_path=file_path,
                     content_preview=content_preview,
                     size_chars=len(new_string)
@@ -207,7 +220,7 @@ class DeepAgentMiddleware(AgentMiddleware):
         except Exception as e:
             logger.warning("🦊⚠️ Could not parse edit_file args", error=str(e))
 
-    def _handle_read_file(self, request: Any, result: Any, output_type: str) -> None:
+    def _handle_read_file(self, request: Any, result: Any, output_type: str, agent_name: str) -> None:
         """Handle read_file tool - show file path and content size."""
         try:
             if hasattr(request, 'tool_call') and 'args' in request.tool_call:
@@ -219,6 +232,7 @@ class DeepAgentMiddleware(AgentMiddleware):
 
                 logger.info(
                     "🦊 File read",
+                    agent=agent_name,
                     file_path=file_path,
                     lines=line_count,
                     output_type=output_type
@@ -226,7 +240,7 @@ class DeepAgentMiddleware(AgentMiddleware):
         except Exception as e:
             logger.warning("🦊⚠️ Could not parse read_file args", error=str(e))
 
-    def _handle_task(self, request: Any, result: Any, output_type: str) -> None:
+    def _handle_task(self, request: Any, result: Any, output_type: str, agent_name: str) -> None:
         """Handle task tool - show subagent delegation."""
         try:
             if hasattr(request, 'tool_call') and 'args' in request.tool_call:
@@ -235,6 +249,7 @@ class DeepAgentMiddleware(AgentMiddleware):
                 description_preview = description[:100] + '...' if len(description) > 100 else description
                 logger.info(
                     "🦊 Subagent task delegated",
+                    agent=agent_name,
                     subagent=subagent_type,
                     description=description_preview,
                     output_type=output_type
@@ -246,7 +261,7 @@ class DeepAgentMiddleware(AgentMiddleware):
     # NATIVE EXTERNAL TOOL HANDLERS
     # ========================================================================
 
-    def _handle_internet_search(self, request: Any, result: Any, output_type: str) -> None:
+    def _handle_internet_search(self, request: Any, result: Any, output_type: str, agent_name: str) -> None:
         """Handle internet_search tool - parse JSON and show query + result count."""
         try:
             # Parse result content (may be JSON string or dict)
@@ -265,6 +280,7 @@ class DeepAgentMiddleware(AgentMiddleware):
         # Match google_serper format from Pydantic AI callbacks
         logger.info(
             f"🐶 Búsqueda web completada: '{query}' (~{word_count} palabras encontradas)",
+            agent=agent_name,
             tool="internet_search",
             query=query,
             result_count=result_count,
