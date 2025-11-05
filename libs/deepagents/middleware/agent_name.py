@@ -64,9 +64,8 @@ class AgentNameMiddleware(AgentMiddleware):
             config: Agent configuration.
 
         Returns:
-            State update with agent_name injected, or None if no update needed.
+            State update with agent_name injected.
         """
-        # Only inject if not already present (avoid overwriting)
-        if "agent_name" not in state:
-            return {"agent_name": self.agent_name}
-        return None
+        # Always set agent_name to ensure subagents get their own name
+        # (subagents inherit parent state, so we must overwrite)
+        return {"agent_name": self.agent_name}
